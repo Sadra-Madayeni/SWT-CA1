@@ -65,7 +65,7 @@ class AutoDriverTest {
                 Arguments.of(-1.0, CORRECTION_DEGREES));
     }
 
-    // These are the original two sensor-failure scenarios, consolidated into one parameterized test.
+
     @ParameterizedTest(name = "Failed sensor: {0}")
     @MethodSource("failingSensors")
     void tick_sensorFailure_entersSafeMode(String failingSensor) {

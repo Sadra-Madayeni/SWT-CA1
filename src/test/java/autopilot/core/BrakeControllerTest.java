@@ -27,7 +27,6 @@ class BrakeControllerTest {
         brakeController = new BrakeController();
     }
 
-    // Intentionally keep a small inline CSV example; larger tables live in CSV resource files.
     @ParameterizedTest(name = "[{index}] pressure={0}, speed={1}, gear={2} -> {3}")
     @CsvSource({
             "0.0,      20.0, D, 0.0",
@@ -97,7 +96,7 @@ class BrakeControllerTest {
 
     @Test
     void apply_speedAtAbsThreshold_resetsNextPulseToHigh() {
-        brakeController.apply(ABS_REQUEST, ABS_SPEED_KMH, GearBox.Gear.D); // next pulse low
+        brakeController.apply(ABS_REQUEST, ABS_SPEED_KMH, GearBox.Gear.D);  
         assertEquals(ABS_REQUEST, brakeController.apply(ABS_REQUEST, 30.0, GearBox.Gear.D));
         assertEquals(ABS_HIGH_PULSE,
                 brakeController.apply(ABS_REQUEST, ABS_SPEED_KMH, GearBox.Gear.D));
@@ -105,7 +104,7 @@ class BrakeControllerTest {
 
     @Test
     void emergencyBrake_duringAbsSequence_resetsPulseToHigh() {
-        brakeController.apply(ABS_REQUEST, ABS_SPEED_KMH, GearBox.Gear.D); // next ABS pulse would be low
+        brakeController.apply(ABS_REQUEST, ABS_SPEED_KMH, GearBox.Gear.D);  
         brakeController.emergencyBrake(GearBox.Gear.D);
         assertEquals(MAX_PRESSURE, brakeController.getPressure());
         assertTrue(brakeController.isWarningActive());

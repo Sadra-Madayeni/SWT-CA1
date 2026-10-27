@@ -50,7 +50,7 @@ class SteeringControllerTest {
 
     @Test
     void update_directionReversal_movesTowardNewNegativeTarget() {
-        controller.update(100.0, NORMAL_SPEED_KMH); // current +60
+        controller.update(100.0, NORMAL_SPEED_KMH); 
         assertEquals(0.0, controller.update(-100.0, NORMAL_SPEED_KMH));
         assertEquals(-60.0, controller.update(-100.0, NORMAL_SPEED_KMH));
         assertEquals(-100.0, controller.update(-100.0, NORMAL_SPEED_KMH));
@@ -58,8 +58,8 @@ class SteeringControllerTest {
 
     @Test
     void update_highSpeedAfterLowSpeed_clampsTargetAndMovesTowardNewLimit() {
-        controller.update(300.0, NORMAL_SPEED_KMH); // current +60, target +300
-        controller.update(300.0, NORMAL_SPEED_KMH); // current +120
+        controller.update(300.0, NORMAL_SPEED_KMH); 
+        controller.update(300.0, NORMAL_SPEED_KMH); 
 
         assertEquals(90.0, controller.update(300.0, 121.0));
         assertEquals(90.0, controller.getTargetAngleDegrees());
@@ -68,7 +68,7 @@ class SteeringControllerTest {
     @Test
     void selfCenter_positiveAngle_reachesZeroGradually() {
         controller.update(100.0, NORMAL_SPEED_KMH);
-        controller.update(100.0, NORMAL_SPEED_KMH); // +100
+        controller.update(100.0, NORMAL_SPEED_KMH); 
 
         assertEquals(40.0, controller.selfCenter());
         assertEquals(0.0, controller.getTargetAngleDegrees());
@@ -78,7 +78,7 @@ class SteeringControllerTest {
     @Test
     void selfCenter_negativeAngle_reachesZeroGradually() {
         controller.update(-100.0, NORMAL_SPEED_KMH);
-        controller.update(-100.0, NORMAL_SPEED_KMH); // -100
+        controller.update(-100.0, NORMAL_SPEED_KMH); 
 
         assertEquals(-40.0, controller.selfCenter());
         assertEquals(0.0, controller.getTargetAngleDegrees());

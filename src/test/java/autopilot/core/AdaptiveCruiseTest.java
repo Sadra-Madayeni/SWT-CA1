@@ -89,7 +89,6 @@ class AdaptiveCruiseTest {
         assertDecision(adaptiveCruise.update(100.0, 40.0), AdaptiveCruise.Mode.BRAKE, 20.0);
         assertDecision(adaptiveCruise.update(100.0, RELEASE_DISTANCE_METERS - 0.001),
                 AdaptiveCruise.Mode.BRAKE, HYSTERESIS_BRAKE_PRESSURE);
-        // Same speed: at exactly 50 * 1.2 = 60 meters hysteresis must release.
         assertDecision(adaptiveCruise.update(100.0, RELEASE_DISTANCE_METERS),
                 AdaptiveCruise.Mode.HOLD, ZERO_AMOUNT);
         assertDecision(adaptiveCruise.update(100.0, 59.0), AdaptiveCruise.Mode.HOLD, ZERO_AMOUNT);

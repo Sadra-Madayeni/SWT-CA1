@@ -25,7 +25,6 @@ class GearBoxTest {
         gearBox = new GearBox(() -> currentSpeed);
     }
 
-    // Begin each case in the requested gear via legitimate transitions, never by modifying internals.
     private void moveToGear(GearBox.Gear startingGear) {
         if (startingGear == GearBox.Gear.P) {
             return;
