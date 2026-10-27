@@ -1,11 +1,9 @@
 package autopilot.core;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -16,9 +14,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class AdaptiveCruiseTest {
 
     private static final double TARGET_SPEED_KMH = 100.0;
-    private static final double EMERGENCY_BRAKE_MAX_PRESSURE = 100.0;
-    private static final double HYSTERESIS_PRESSURE = 10.0;
+    private static final double SAFE_DISTANCE_METERS = 50.0;
+    private static final double EMERGENCY_DISTANCE_METERS = 25.0;
+    private static final double RELEASE_DISTANCE_METERS = 60.0;
+    private static final double HYSTERESIS_BRAKE_PRESSURE = 10.0;
     private static final double ZERO_AMOUNT = 0.0;
+    private static final double DECISION_TOLERANCE = 0.0001;
 
     private AdaptiveCruise adaptiveCruise;
 
@@ -27,87 +28,106 @@ class AdaptiveCruiseTest {
         adaptiveCruise = new AdaptiveCruise(TARGET_SPEED_KMH);
     }
 
-    @ParameterizedTest(name = "Invalid speed value {0} must throw IllegalArgumentException")
+    @ParameterizedTest(name = "Invalid speed {0}")
     @ValueSource(doubles = {-1.0, -50.0, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY})
-    @DisplayName("safeDistanceFor should reject negative or non-finite speed values")
     void safeDistanceFor_invalidSpeed_throwsIllegalArgumentException(double invalidSpeed) {
         assertThrows(IllegalArgumentException.class, () -> adaptiveCruise.safeDistanceFor(invalidSpeed));
     }
 
-    @ParameterizedTest(name = "Invalid distance value {0} must throw IllegalArgumentException")
-    @ValueSource(doubles = {-0.1, -20.0, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY})
-    @DisplayName("update should reject negative or non-finite distance values")
-    void update_invalidDistance_throwsIllegalArgumentException(double invalidDistance) {
-        assertThrows(IllegalArgumentException.class, () -> adaptiveCruise.update(60.0, invalidDistance));
+    @Test
+    void safeDistanceFor_validSpeed_returnsHalfTheSpeed() {
+        assertEquals(0.0, adaptiveCruise.safeDistanceFor(0.0));
+        assertEquals(20.0, adaptiveCruise.safeDistanceFor(40.0));
+        assertEquals(SAFE_DISTANCE_METERS, adaptiveCruise.safeDistanceFor(TARGET_SPEED_KMH));
     }
 
-    @ParameterizedTest(name = "Speed {0} km/h -> Safe distance {1} meters")
-    @CsvSource({
-            "0.0, 0.0",
-            "40.0, 20.0",
-            "100.0, 50.0"
-    })
-    @DisplayName("safeDistanceFor should compute distance as speed multiplied by 0.5")
-    void safeDistanceFor_validSpeeds_returnsHalfSpeedInMeters(double speedKmh, double expectedSafeDistance) {
-        assertEquals(expectedSafeDistance, adaptiveCruise.safeDistanceFor(speedKmh));
-    }
-
-    @ParameterizedTest(name = "[{index}] Speed: {0}, Dist: {1} -> Mode: {2}, Amount: {3}")
-    @MethodSource("provideCruiseDrivingScenarios")
-    @DisplayName("update should make accurate control decisions under boundary and normal scenarios")
-    void update_variousConditions_makesCorrectDecision(
-            double currentSpeed,
-            double distanceMeters,
-            AdaptiveCruise.Mode expectedMode,
-            double expectedAmount
-    ) {
-        AdaptiveCruise.Decision decision = adaptiveCruise.update(currentSpeed, distanceMeters);
-
-        assertAll("Cruise Decision Verification",
+    @ParameterizedTest(name = "[{index}] speed={0}, distance={1}, mode={2}")
+    @MethodSource("drivingScenarios")
+    void update_independentDrivingConditions_returnsCorrectDecision(
+            double speedKmh, double distanceMeters, AdaptiveCruise.Mode expectedMode, double expectedAmount) {
+        AdaptiveCruise.Decision decision = adaptiveCruise.update(speedKmh, distanceMeters);
+        assertAll("Cruise control decision",
                 () -> assertEquals(expectedMode, decision.mode()),
-                () -> assertEquals(expectedAmount, decision.amount(), 0.001)
-        );
+                () -> assertEquals(expectedAmount, decision.amount(), DECISION_TOLERANCE));
     }
 
-    private static Stream<Arguments> provideCruiseDrivingScenarios() {
+    private static Stream<Arguments> drivingScenarios() {
         return Stream.of(
-               
-                Arguments.of(100.0, 25.0, AdaptiveCruise.Mode.EMERGENCY_BRAKE, EMERGENCY_BRAKE_MAX_PRESSURE),
-
-                Arguments.of(100.0, 10.0, AdaptiveCruise.Mode.EMERGENCY_BRAKE, EMERGENCY_BRAKE_MAX_PRESSURE),
-
+                Arguments.of(100.0, 0.0, AdaptiveCruise.Mode.EMERGENCY_BRAKE, 100.0),
+                Arguments.of(100.0, EMERGENCY_DISTANCE_METERS, AdaptiveCruise.Mode.EMERGENCY_BRAKE, 100.0),
+                Arguments.of(100.0, 25.001, AdaptiveCruise.Mode.BRAKE, 49.998),
                 Arguments.of(100.0, 40.0, AdaptiveCruise.Mode.BRAKE, 20.0),
-   
-                Arguments.of(80.0, 40.0, AdaptiveCruise.Mode.HOLD, ZERO_AMOUNT),
-       
-                Arguments.of(70.0, 80.0, AdaptiveCruise.Mode.ACCELERATE, 5.0),
-   
-                Arguments.of(98.0, 80.0, AdaptiveCruise.Mode.ACCELERATE, 2.0),
-      
+                Arguments.of(100.0, 49.0, AdaptiveCruise.Mode.BRAKE, 2.0),
+                Arguments.of(100.0, SAFE_DISTANCE_METERS, AdaptiveCruise.Mode.HOLD, ZERO_AMOUNT),
                 Arguments.of(100.0, 80.0, AdaptiveCruise.Mode.HOLD, ZERO_AMOUNT),
-
+                Arguments.of(80.0, 40.0, AdaptiveCruise.Mode.HOLD, ZERO_AMOUNT),
+                Arguments.of(70.0, 80.0, AdaptiveCruise.Mode.ACCELERATE, 5.0),
+                Arguments.of(98.0, 80.0, AdaptiveCruise.Mode.ACCELERATE, 2.0),
                 Arguments.of(105.0, 80.0, AdaptiveCruise.Mode.HOLD, ZERO_AMOUNT),
-             
-                Arguments.of(0.0, 0.0, AdaptiveCruise.Mode.EMERGENCY_BRAKE, EMERGENCY_BRAKE_MAX_PRESSURE)
-        );
+                Arguments.of(0.0, 0.0, AdaptiveCruise.Mode.EMERGENCY_BRAKE, 100.0),
+                Arguments.of(0.0, 20.0, AdaptiveCruise.Mode.ACCELERATE, 5.0));
+    }
+
+    @ParameterizedTest(name = "Invalid speed {0}")
+    @MethodSource("invalidNumbers")
+    void update_invalidSpeed_throwsIllegalArgumentException(double invalidSpeed) {
+        assertThrows(IllegalArgumentException.class, () -> adaptiveCruise.update(invalidSpeed, 80.0));
+    }
+
+    @ParameterizedTest(name = "Invalid distance {0}")
+    @MethodSource("invalidNumbers")
+    void update_invalidDistance_throwsIllegalArgumentException(double invalidDistance) {
+        assertThrows(IllegalArgumentException.class, () -> adaptiveCruise.update(80.0, invalidDistance));
+    }
+
+    private static Stream<Double> invalidNumbers() {
+        return Stream.of(-0.1, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
     }
 
     @Test
-    @DisplayName("Should maintain hysteresis braking until strictly reaching release distance")
-    void update_brakingActive_maintainsHysteresisUntilReachingReleaseDistance() {
- 
-        adaptiveCruise.update(100.0, 30.0);
+    void update_brakingState_releasesExactlyAtHysteresisBoundary() {
+        assertDecision(adaptiveCruise.update(100.0, 40.0), AdaptiveCruise.Mode.BRAKE, 20.0);
+        assertDecision(adaptiveCruise.update(100.0, RELEASE_DISTANCE_METERS - 0.001),
+                AdaptiveCruise.Mode.BRAKE, HYSTERESIS_BRAKE_PRESSURE);
+        // Same speed: at exactly 50 * 1.2 = 60 meters hysteresis must release.
+        assertDecision(adaptiveCruise.update(100.0, RELEASE_DISTANCE_METERS),
+                AdaptiveCruise.Mode.HOLD, ZERO_AMOUNT);
+        assertDecision(adaptiveCruise.update(100.0, 59.0), AdaptiveCruise.Mode.HOLD, ZERO_AMOUNT);
+    }
 
-        AdaptiveCruise.Decision hysteresisDecision = adaptiveCruise.update(100.0, 59.0);
-        assertAll("Hysteresis State Verification",
-                () -> assertEquals(AdaptiveCruise.Mode.BRAKE, hysteresisDecision.mode()),
-                () -> assertEquals(HYSTERESIS_PRESSURE, hysteresisDecision.amount())
-        );
+    @Test
+    void update_emergencyBraking_remainsInHysteresisUntilRelease() {
+        assertDecision(adaptiveCruise.update(100.0, EMERGENCY_DISTANCE_METERS),
+                AdaptiveCruise.Mode.EMERGENCY_BRAKE, 100.0);
+        assertDecision(adaptiveCruise.update(100.0, SAFE_DISTANCE_METERS),
+                AdaptiveCruise.Mode.BRAKE, HYSTERESIS_BRAKE_PRESSURE);
+        assertDecision(adaptiveCruise.update(100.0, RELEASE_DISTANCE_METERS),
+                AdaptiveCruise.Mode.HOLD, ZERO_AMOUNT);
+        assertDecision(adaptiveCruise.update(90.0, 80.0), AdaptiveCruise.Mode.ACCELERATE, 5.0);
+    }
 
-        AdaptiveCruise.Decision releasedDecision = adaptiveCruise.update(90.0, 60.0);
-        assertAll("Released State Verification",
-                () -> assertEquals(AdaptiveCruise.Mode.ACCELERATE, releasedDecision.mode()),
-                () -> assertEquals(5.0, releasedDecision.amount())
-        );
+    @Test
+    void update_invalidInput_doesNotClearActiveHysteresis() {
+        adaptiveCruise.update(100.0, 40.0);
+        assertThrows(IllegalArgumentException.class,
+                () -> adaptiveCruise.update(100.0, Double.NaN));
+        assertDecision(adaptiveCruise.update(100.0, 55.0),
+                AdaptiveCruise.Mode.BRAKE, HYSTERESIS_BRAKE_PRESSURE);
+    }
+
+    @Test
+    void update_afterHysteresisRelease_entersBrakingAgainAtUnsafeDistance() {
+        adaptiveCruise.update(100.0, 40.0);
+        adaptiveCruise.update(100.0, RELEASE_DISTANCE_METERS);
+        assertDecision(adaptiveCruise.update(100.0, 49.0), AdaptiveCruise.Mode.BRAKE, 2.0);
+        assertDecision(adaptiveCruise.update(100.0, 50.0),
+                AdaptiveCruise.Mode.BRAKE, HYSTERESIS_BRAKE_PRESSURE);
+    }
+
+    private static void assertDecision(AdaptiveCruise.Decision decision,
+                                       AdaptiveCruise.Mode expectedMode, double expectedAmount) {
+        assertAll("Cruise decision",
+                () -> assertEquals(expectedMode, decision.mode()),
+                () -> assertEquals(expectedAmount, decision.amount(), DECISION_TOLERANCE));
     }
 }
